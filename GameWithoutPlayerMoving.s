@@ -1,44 +1,33 @@
-
-
-#set up basket function - can change size by change in register value
 setupconstants:
 #Register sets up at start 
 addi x10, x0, -1 # gnd
-#addi x14, x0, 2 # high score
 addi x15, x0, 0 # current score
-sw x15, 4(x0)
-sw x10, 16(x0)
-sw x14, 8(x0)
-lui x5, 0x00010 
-lui x7, 0x80000
-addi x3, x0, 1 # basket moving register 0=left
-addi x16, x0, 1 # check basket direction constant
+sw x15, 4(x0) # store current score = 0
+sw x10, 16(x0) # store ground
+sw x14, 8(x0) # store high score
+lui x5, 0x00010 # offset for rinport
+lui x7, 0x80000 # mask check for left most bit 
+#addi x3, x0, 1 # basket moving register 0=left
+#addi x16, x0, 1 # check basket direction constant
+addi x19, x0, 24 #basket base memory row
 
-addi x19, x0, 24
 #start game
 pollForRInport2Eq1:            # read rInport, mask bit (2), repeat until rInport(2) = 1 
 lw x4, 0xc(x5) 
 andi x6, x4, 4   
-#addi x5, x0, 4
 beq x6, x0, pollForRInport2Eq1
 
 pollForRInport2Eq0: # read rInport, mask bit (2), repeat until rInport(2) = 0
  lw x4, 0xc(x5)  
  andi x6, x4, 4   
- #addi x5, x0, 0 	      # test: (uncomment if testing) deasserts rInport(2) 
  bne x6, x0, pollForRInport2Eq0 
 
 seedBasket:
 addi x11, x0, 0xff # base basket
-#addi x12, x0, 0x81 # walls basket 
-#lui x13, 0x10 # ball
-#sw x13, 0(x18)
 sw x11, 0(x19)
-#sw x12, 28(x0)
-#sw x12, 32(x0)
 
 seedBall:
-addi x18, x0, 56 # ball starting row offset
+addi x18, x0, 56 # ball starting starting row 
 lui x13, 0x10 # ball
 sw x13, 0(x18)
 
@@ -50,29 +39,23 @@ mainLoop:  			             # program-based decrementing delay loop [ref 1]
    bne   x8, x0,  decrDelayCountUntil0 
 
 checkBasketDirection:
-beq x3, x0, basketMovingLeft
-beq x3, x16, basketMovingRight
+beq x3, x0, basketMovingLeft   #check basket moving register = 0
+bne x3, x0, basketMovingRight # check basket moving register != 0 i.e = 1
 
 basketMovingLeft:
-addi x3, x0, 0 
-and x9, x11, x7
-bne x9, x0, basketMovingRight
+addi x3, x0, 0  # add 0 to basket direction register 
+and x9, x11, x7 # and with left most bit 
+bne x9, x0, basketMovingRight #if and comes back with 1 you are in left most bit so go right
 slli x11,x11,1
 sw x11, 24(x0)
-#slli x12,x12,1
-#sw x12, 28(x0)
-#sw x12, 32(x0)
 beq x0,x0, ballDroppedCheck
 
 basketMovingRight:
-addi x3, x0, 1
+addi x3, x0, 1 
 andi x9, x11, 1
 bne x9, x0, basketMovingLeft
 srli x11,x11,1
 sw x11, 24(x0)
-#srli x12,x12,1
-#sw x12, 28(x0)
-#sw x12, 32(x0)
 
 ballDroppedCheck: 
 bne x17, x0, dropBall # ball has been dropped skip player moving stuff
@@ -97,32 +80,31 @@ pollRInport10_chkPlayerMove:         # inport(1)/(0) player left/right move cont
 # srli  x13, x13,  1    			 # shift player right 1 bit
 # sw x13, 56(x0)
 
-chkIfDropBallBit: # if x10 asserted in same x11 asserted bit position (use AND), clear x10 bit if rInport(2) asserted
- andi    x6, x4, 4
- beq    x6, x0,   mainLoop 
+chkIfDropBallBit: #check rinport to see if ball is dropped
+ andi x6, x4, 4
+ beq x6, x0, mainLoop 
 
 dropBall:
 addi x17, x0, 1 # ball has began dropping
 sw x0, 0(x18) # clear row where ball is now
 addi x18, x18, -8 # minus 8 to move ball down 2 rows
 beq x18, x19, scoreKeeper # when ball and base same row move to scorekeeper
-#bne x6, x0, scoreKeeper
 sw x13, 0(x18) # store ball in new memory row
-beq x0, x0,   mainLoop # testing to go back to start
+beq x0, x0, mainLoop # testing to go back to start
 
 scoreKeeper:
-and x6, x11, x13
-bne x6, x0, addScore # player scores
+and x6, x11, x13 # check if ball lands on base
+bne x6, x0, addScore # player scores so go to addScore
 or x11, x11, x13 # or ball and base so it appears on one line in led array
 sw x11, 0(x19) # store on led array
 #add delay code here
-#make higer store here only  
+#make high store here only  
 addi x17, x0, 0 # deassert ball has been dropped reg
 beq x0, x0, setupconstants  
 
 addScore:
 addi x17, x0, 0 # deassert ball has been dropped reg
-addi x15, x15, 1 
+addi x15, x15, 1 #add one to curent score
 sw x15, 4(x0)
 
 #wait for player to deassert drop ball to continue game 
