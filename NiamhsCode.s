@@ -7,19 +7,23 @@ addi x14, x0, 2 # high score
 #addi x15, x0, 8 # current score 
 sw x10, 16(x0)
 sw x14, 8(x0)
+lui x5, 0x00010 
+lui x7, 0x80000
+addi x3, x0, 1 # basket moving register 0=left
+addi x16, x0, 1 # check basket direction constant
 
 #start game
 pollForRInport2Eq1:            # read rInport, mask bit (2), repeat until rInport(2) = 1 
-lw x4, 0xc(x15) 
-andi x5, x4, 4   
+lw x4, 0xc(x5) 
+andi x6, x4, 4   
 #addi x5, x0, 4
-beq x5, x0, pollForRInport2Eq1
+beq x6, x0, pollForRInport2Eq1
 
 pollForRInport2Eq0: # read rInport, mask bit (2), repeat until rInport(2) = 0
- lw x4, 0xc(x15)  
- andi x5, x4, 4   
+ lw x4, 0xc(x5)  
+ andi x6, x4, 4   
  #addi x5, x0, 0 	      # test: (uncomment if testing) deasserts rInport(2) 
- bne x5, x0, pollForRInport2Eq0 
+ bne x6, x0, pollForRInport2Eq0 
 
 seedBasket:
 addi x11, x0, 0xff # base basket
@@ -31,41 +35,59 @@ sw x12, 28(x0)
 sw x12, 32(x0)
 
 mainLoop:  			             # program-based decrementing delay loop [ref 1]
- lui    x12, 0x00601  		         # delayCount 0x00601000. Approx 1 second delay for 12.5MHz clk
- #addi   x12, x0,   1 		         # test: (uncomment if testing) initial count value
- decrDelayCountUntil0:              
-  addi  x12, x12,  -1                
-  bne   x12, x0,  decrDelayCountUntil0 
+ lui    x8, 0x00601  		         # delayCount 0x00601000. Approx 1 second delay for 12.5MHz clk
+ #addi   x8, x0,   1 		         # test: (uncomment if testing) initial count value
+  decrDelayCountUntil0:              
+   addi  x8, x8,  -1                
+   bne   x8, x0,  decrDelayCountUntil0 
 
-basketMoving:
+checkBasketDirection:
+beq x3, x0, basketMovingLeft
+beq x3, x16, basketMovingRight
+
+basketMovingLeft:
+addi x3, x0, 0 
+and x9, x11, x7
+bne x9, x0, basketMovingRight
 slli x11,x11,1
 sw x11, 24(x0)
 slli x12,x12,1
-addi x0,x0,0
+sw x12, 28(x0)
+sw x12, 32(x0)
+beq x0,x0, pollRInport10_chkPlayerMove
+
+basketMovingRight:
+addi x3, x0, 1
+andi x9, x11, 1
+bne x9, x0, basketMovingLeft
+srli x11,x11,1
+sw x11, 24(x0)
+srli x12,x12,1
 sw x12, 28(x0)
 sw x12, 32(x0)
 
 pollRInport10_chkPlayerMove:         # inport(1)/(0) player left/right move control. Use AND mask to isolate bit.
- lw     x4, 0xc(x15)
- lui x10,80000
+ lw     x4, 0xc(x5)
 mskRInport1_If1ShiftPlayerLeft_ifPosnNotBit31:
-andi   x5, x4,  2   			     
+andi   x6, x4,  2   			     
 #  #addi   x12, x0,   2 			     # test: (uncomment if testing), force inport(0) asserted flag
-beq    x5, x0,  mskRInport0_If1ShiftPlayerRight_ifPosnNotBit0
-and   x5, x13, x10  	             # mask player bit 31. Can't move further left 
-bne   x5, x0,  chkIfDropBallBit
+beq    x6, x0,  mskRInport0_If1ShiftPlayerRight_ifPosnNotBit0
+and   x6, x13, x7  	                               # mask player bit 31. Can't move further left 
+bne   x6, x0,  chkIfDropBallBit
 slli   x13, x13,  1   		     # shift player left 1 bit
+sw x13, 56(x0) 
 beq    x0,  x0,  chkIfDropBallBit# unconditional branch
 mskRInport0_If1ShiftPlayerRight_ifPosnNotBit0:
-andi   x5, x4,  1   			     
+andi   x6, x4,  1   			     
 #  #addi   x12, x0,   1 			     # test: (uncomment if testing), force inport(1) asserted flag
-beq    x5, x0,   chkIfDropBallBit
-andi  x5, x13,  1   			     # mask player bit 0. Can't move further right 
-bne   x5, x0,   chkIfDropBallBit
+beq    x6, x0,   chkIfDropBallBit
+andi  x6, x13,  1   			     # mask player bit 0. Can't move further right 
+bne   x6, x0,   chkIfDropBallBit
 srli  x13, x13,  1    			 # shift player right 1 bit
+sw x13, 56(x0)
 
 chkIfDropBallBit: # if x10 asserted in same x11 asserted bit position (use AND), clear x10 bit if rInport(2) asserted
- andi    x5, x4, 4  			  
+ andi    x6, x4, 4  			  
  beq    x12, x0,   mainLoop  
 #this is where we call drop ball
 
